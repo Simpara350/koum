@@ -68,6 +68,25 @@
     };
   }
 
+  const CACHE_PREFIX = 'kouma_fashion_';
+  const CACHE_VERSION = 1;
+
+  function getCache(key) {
+    try {
+      const raw = localStorage.getItem(CACHE_PREFIX + key);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed?.v !== CACHE_VERSION) return null;
+      return parsed.data;
+    } catch (_) { return null; }
+  }
+
+  function setCache(key, data) {
+    try {
+      localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ v: CACHE_VERSION, data }));
+    } catch (_) {}
+  }
+
   // --- Auth ---
   function showAuthScreen() {
     if (authScreen) authScreen.classList.remove('hidden');
@@ -308,14 +327,9 @@
   });
 
   // --- Produits ---
-  async function loadProduits() {
-    const { data, error } = await supabase.from('produits').select('*').order('nom');
+  function renderProduits(data) {
     const tbody = document.getElementById('produits-list');
     if (!tbody) return;
-    if (error) {
-      tbody.innerHTML = '<tr><td colspan="7">Erreur: ' + error.message + '</td></tr>';
-      return;
-    }
     tbody.innerHTML = (data || []).map(p => `
       <tr>
         <td>${p.reference || '-'}</td>
@@ -332,6 +346,20 @@
     `).join('');
     tbody.querySelectorAll('[data-edit-produit]').forEach(b => b.addEventListener('click', () => openProduitModal(b.dataset.editProduit)));
     tbody.querySelectorAll('[data-delete-produit]').forEach(b => b.addEventListener('click', () => deleteProduit(b.dataset.deleteProduit)));
+  }
+
+  async function loadProduits() {
+    const cached = getCache('produits');
+    if (cached) renderProduits(cached);
+    const { data, error } = await supabase.from('produits').select('*').order('nom');
+    const tbody = document.getElementById('produits-list');
+    if (!tbody) return;
+    if (error) {
+      if (!cached) tbody.innerHTML = '<tr><td colspan="7">Erreur: ' + error.message + '</td></tr>';
+      return;
+    }
+    renderProduits(data || []);
+    setCache('produits', data || []);
   }
 
   function openProduitModal(id) {
@@ -576,12 +604,38 @@
       : '<p class="text-muted">Aucun produit en alerte (stock &gt; 5)</p>';
   }
 
-  async function loadMouvements() {
-    const { data: movData, error } = await supabase.from('mouvements').select('*').order('date', { ascending: false });
+  function renderMouvements(movData, produitsMap, fournisseursMap) {
     const tbody = document.getElementById('mouvements-list');
     if (!tbody) return;
+    const getProd = (m) => { const p = produitsMap[m.produit_id]; return p ? (p.nom || '') + (p.reference ? ' (' + p.reference + ')' : '') : 'Produit'; };
+    const getFourn = (m) => { const f = fournisseursMap[m.fournisseur_id]; return f ? f.nom : (m.provenance || '-'); };
+    tbody.innerHTML = (movData || []).map(m => `
+      <tr>
+        <td>${formatDate(m.date)}</td>
+        <td>${getProd(m)}</td>
+        <td><span class="badge badge-${m.type === 'entree' ? 'success' : 'danger'}">${m.type === 'entree' ? 'Entrée' : 'Sortie'}</span></td>
+        <td>${formatNumber(m.quantite)}</td>
+        <td>${m.motif || getFourn(m)}</td>
+        <td>${m.type === 'entree' ? `<a href="#" class="link-bon link-pdf" data-bon="${m.id}">PDF</a>` : '-'}</td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('.link-bon').forEach(a => {
+      a.addEventListener('click', (e) => { e.preventDefault(); telechargerBonReception(a.dataset.bon); });
+    });
+  }
+
+  async function loadMouvements() {
+    const tbody = document.getElementById('mouvements-list');
+    if (!tbody) return;
+    const cached = getCache('mouvements');
+    if (cached?.movData) {
+      renderMouvements(cached.movData, cached.produitsMap || {}, cached.fournisseursMap || {});
+      const cachedProds = getCache('produits');
+      if (cachedProds) renderRuptureList('stock-rupture', cachedProds);
+    }
+    const { data: movData, error } = await supabase.from('mouvements').select('*').order('date', { ascending: false });
     if (error) {
-      tbody.innerHTML = '<tr><td colspan="6">Table mouvements absente. Exécutez schema_supabase.sql dans Supabase.</td></tr>';
+      if (!cached?.movData) tbody.innerHTML = '<tr><td colspan="6">Table mouvements absente. Exécutez schema_supabase.sql dans Supabase.</td></tr>';
       return;
     }
     const { data: produits } = await supabase.from('produits').select('id, nom, quantite');
@@ -598,21 +652,8 @@
       const { data: fourns } = await supabase.from('fournisseurs').select('id, nom').in('id', fournIds);
       (fourns || []).forEach(f => { fournisseursMap[f.id] = f; });
     }
-    const getProd = (m) => { const p = produitsMap[m.produit_id]; return p ? (p.nom || '') + (p.reference ? ' (' + p.reference + ')' : '') : 'Produit'; };
-    const getFourn = (m) => { const f = fournisseursMap[m.fournisseur_id]; return f ? f.nom : (m.provenance || '-'); };
-    tbody.innerHTML = (movData || []).map(m => `
-      <tr>
-        <td>${formatDate(m.date)}</td>
-        <td>${getProd(m)}</td>
-        <td><span class="badge badge-${m.type === 'entree' ? 'success' : 'danger'}">${m.type === 'entree' ? 'Entrée' : 'Sortie'}</span></td>
-        <td>${formatNumber(m.quantite)}</td>
-        <td>${m.motif || getFourn(m)}</td>
-        <td>${m.type === 'entree' ? `<a href="#" class="link-bon link-pdf" data-bon="${m.id}">PDF</a>` : '-'}</td>
-      </tr>
-    `).join('');
-    tbody.querySelectorAll('.link-bon').forEach(a => {
-      a.addEventListener('click', (e) => { e.preventDefault(); telechargerBonReception(a.dataset.bon); });
-    });
+    renderMouvements(movData || [], produitsMap, fournisseursMap);
+    setCache('mouvements', { movData: movData || [], produitsMap, fournisseursMap });
   }
 
   document.getElementById('btn-entree')?.addEventListener('click', () => openMouvementModal('entree'));
@@ -717,11 +758,9 @@
   });
 
   // --- Clients ---
-  async function loadClients() {
-    const { data, error } = await supabase.from('clients').select('*').order('nom');
+  function renderClients(data) {
     const tbody = document.getElementById('clients-list');
     if (!tbody) return;
-    if (error) { tbody.innerHTML = '<tr><td colspan="5">Erreur</td></tr>'; return; }
     tbody.innerHTML = (data || []).map(c => `
       <tr>
         <td>${c.nom || '-'}</td>
@@ -734,6 +773,17 @@
       </tr>
     `).join('');
     tbody.querySelectorAll('[data-edit-client]').forEach(b => b.addEventListener('click', () => openClientModal(b.dataset.editClient)));
+  }
+
+  async function loadClients() {
+    const cached = getCache('clients');
+    if (cached) renderClients(cached);
+    const { data, error } = await supabase.from('clients').select('*').order('nom');
+    const tbody = document.getElementById('clients-list');
+    if (!tbody) return;
+    if (error) { if (!cached) tbody.innerHTML = '<tr><td colspan="5">Erreur</td></tr>'; return; }
+    renderClients(data || []);
+    setCache('clients', data || []);
   }
 
   function openClientModal(id) {
@@ -770,11 +820,9 @@
   });
 
   // --- Fournisseurs ---
-  async function loadFournisseurs() {
-    const { data, error } = await supabase.from('fournisseurs').select('*').order('nom');
+  function renderFournisseurs(data) {
     const tbody = document.getElementById('fournisseurs-list');
     if (!tbody) return;
-    if (error) { tbody.innerHTML = '<tr><td colspan="5">Erreur</td></tr>'; return; }
     tbody.innerHTML = (data || []).map(f => `
       <tr>
         <td>${f.nom || '-'}</td>
@@ -787,6 +835,17 @@
       </tr>
     `).join('');
     tbody.querySelectorAll('[data-edit-fournisseur]').forEach(b => b.addEventListener('click', () => openFournisseurModal(b.dataset.editFournisseur)));
+  }
+
+  async function loadFournisseurs() {
+    const cached = getCache('fournisseurs');
+    if (cached) renderFournisseurs(cached);
+    const { data, error } = await supabase.from('fournisseurs').select('*').order('nom');
+    const tbody = document.getElementById('fournisseurs-list');
+    if (!tbody) return;
+    if (error) { if (!cached) tbody.innerHTML = '<tr><td colspan="5">Erreur</td></tr>'; return; }
+    renderFournisseurs(data || []);
+    setCache('fournisseurs', data || []);
   }
 
   function openFournisseurModal(id) {
@@ -826,19 +885,9 @@
   let detteFilterClients = 'en-cours';
   let detteFilterFournisseurs = 'en-cours';
 
-  async function loadDettesClients() {
-    const { data: ventesData, error } = await supabase.from('ventes').select('*');
+  function renderDettesClients(data, clientsMap) {
     const tbody = document.getElementById('dettes-clients-list');
     if (!tbody) return;
-    if (error) { tbody.innerHTML = '<tr><td colspan="8">Erreur: ' + (error.message || '') + '</td></tr>'; return; }
-    let data = (ventesData || []).filter(v => v.restant_a_payer != null);
-    data.sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
-    const clientIds = [...new Set(data.map(v => v.client_id).filter(Boolean))];
-    const clientsMap = {};
-    if (clientIds.length) {
-      const { data: clients } = await supabase.from('clients').select('id, nom').in('id', clientIds);
-      (clients || []).forEach(c => { clientsMap[c.id] = c.nom; });
-    }
     let rows = data.filter(v => Number(v.restant_a_payer) > 0 || detteFilterClients !== 'en-cours');
     if (detteFilterClients === 'reglees') rows = data.filter(v => Number(v.restant_a_payer) <= 0);
     if (detteFilterClients === 'toutes') rows = data;
@@ -858,17 +907,28 @@
     tbody.querySelectorAll('[data-regler-client]').forEach(b => b.addEventListener('click', () => openReglementClient(b.dataset.reglerClient)));
   }
 
-  async function loadDettesFournisseurs() {
-    const { data: movData, error } = await supabase.from('mouvements').select('*').eq('type', 'entree').order('date', { ascending: false });
+  async function loadDettesClients() {
+    const tbody = document.getElementById('dettes-clients-list');
+    if (!tbody) return;
+    const cached = getCache('dettes_clients');
+    if (cached?.data) renderDettesClients(cached.data, cached.clientsMap || {});
+    const { data: ventesData, error } = await supabase.from('ventes').select('*');
+    if (error) { if (!cached?.data) tbody.innerHTML = '<tr><td colspan="8">Erreur: ' + (error.message || '') + '</td></tr>'; return; }
+    let data = (ventesData || []).filter(v => v.restant_a_payer != null);
+    data.sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
+    const clientIds = [...new Set(data.map(v => v.client_id).filter(Boolean))];
+    const clientsMap = {};
+    if (clientIds.length) {
+      const { data: clients } = await supabase.from('clients').select('id, nom').in('id', clientIds);
+      (clients || []).forEach(c => { clientsMap[c.id] = c.nom; });
+    }
+    renderDettesClients(data, clientsMap);
+    setCache('dettes_clients', { data, clientsMap });
+  }
+
+  function renderDettesFournisseurs(data, produitsMap, fournisseursMap) {
     const tbody = document.getElementById('dettes-fournisseurs-list');
     if (!tbody) return;
-    if (error) { tbody.innerHTML = '<tr><td colspan="8">Table mouvements absente. Exécutez schema_supabase.sql.</td></tr>'; return; }
-    const data = movData || [];
-    const prodIds = [...new Set(data.map(m => m.produit_id).filter(Boolean))];
-    const fournIds = [...new Set(data.map(m => m.fournisseur_id).filter(Boolean))];
-    const produitsMap = {}; const fournisseursMap = {};
-    if (prodIds.length) { const { data: p } = await supabase.from('produits').select('id, nom').in('id', prodIds); (p || []).forEach(x => { produitsMap[x.id] = x.nom; }); }
-    if (fournIds.length) { const { data: f } = await supabase.from('fournisseurs').select('id, nom').in('id', fournIds); (f || []).forEach(x => { fournisseursMap[x.id] = x.nom; }); }
     let rows = data.filter(m => (Number(m.restant_a_payer) || 0) > 0 || detteFilterFournisseurs !== 'en-cours');
     if (detteFilterFournisseurs === 'reglees') rows = data.filter(m => (Number(m.restant_a_payer) || 0) <= 0);
     if (detteFilterFournisseurs === 'toutes') rows = data;
@@ -887,6 +947,23 @@
       </tr>
     `).join('');
     tbody.querySelectorAll('[data-regler-fournisseur]').forEach(b => b.addEventListener('click', () => openReglementFournisseur(b.dataset.reglerFournisseur)));
+  }
+
+  async function loadDettesFournisseurs() {
+    const tbody = document.getElementById('dettes-fournisseurs-list');
+    if (!tbody) return;
+    const cached = getCache('dettes_fournisseurs');
+    if (cached?.data) renderDettesFournisseurs(cached.data, cached.produitsMap || {}, cached.fournisseursMap || {});
+    const { data: movData, error } = await supabase.from('mouvements').select('*').eq('type', 'entree').order('date', { ascending: false });
+    if (error) { if (!cached?.data) tbody.innerHTML = '<tr><td colspan="8">Table mouvements absente. Exécutez schema_supabase.sql.</td></tr>'; return; }
+    const data = movData || [];
+    const prodIds = [...new Set(data.map(m => m.produit_id).filter(Boolean))];
+    const fournIds = [...new Set(data.map(m => m.fournisseur_id).filter(Boolean))];
+    const produitsMap = {}; const fournisseursMap = {};
+    if (prodIds.length) { const { data: p } = await supabase.from('produits').select('id, nom').in('id', prodIds); (p || []).forEach(x => { produitsMap[x.id] = x.nom; }); }
+    if (fournIds.length) { const { data: f } = await supabase.from('fournisseurs').select('id, nom').in('id', fournIds); (f || []).forEach(x => { fournisseursMap[x.id] = x.nom; }); }
+    renderDettesFournisseurs(data, produitsMap, fournisseursMap);
+    setCache('dettes_fournisseurs', { data, produitsMap, fournisseursMap });
   }
 
   document.querySelectorAll('.filter-btn-small[data-dette-filter="clients"]').forEach(btn => {
@@ -1106,20 +1183,11 @@
     if (venteId) telechargerFacture(venteId);
   });
 
-  async function loadVentes() {
-    const { data: ventesData, error } = await supabase.from('ventes').select('*');
+  function renderVentes(sorted, clientsMap) {
     const tbody = document.getElementById('ventes-list');
     if (!tbody) return;
-    if (error) { tbody.innerHTML = '<tr><td colspan="5">Erreur: ' + (error.message || '') + '</td></tr>'; return; }
-    const sorted = (ventesData || []).slice().sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
-    const clientIds = [...new Set(sorted.map(v => v.client_id).filter(Boolean))];
-    const clientsMap = {};
-    if (clientIds.length) {
-      const { data: clients } = await supabase.from('clients').select('id, nom').in('id', clientIds);
-      (clients || []).forEach(c => { clientsMap[c.id] = c.nom; });
-    }
     const clientNom = (v) => clientsMap[v.client_id] || '-';
-    tbody.innerHTML = sorted.map(v => `
+    tbody.innerHTML = (sorted || []).map(v => `
       <tr>
         <td>${v.numero_facture || '-'}</td>
         <td>${clientNom(v)}</td>
@@ -1129,6 +1197,24 @@
       </tr>
     `).join('');
     tbody.querySelectorAll('[data-facture]').forEach(b => b.addEventListener('click', () => telechargerFacture(b.dataset.facture)));
+  }
+
+  async function loadVentes() {
+    const tbody = document.getElementById('ventes-list');
+    if (!tbody) return;
+    const cached = getCache('ventes');
+    if (cached?.sorted) renderVentes(cached.sorted, cached.clientsMap || {});
+    const { data: ventesData, error } = await supabase.from('ventes').select('*');
+    if (error) { if (!cached?.sorted) tbody.innerHTML = '<tr><td colspan="5">Erreur: ' + (error.message || '') + '</td></tr>'; return; }
+    const sorted = (ventesData || []).slice().sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
+    const clientIds = [...new Set(sorted.map(v => v.client_id).filter(Boolean))];
+    const clientsMap = {};
+    if (clientIds.length) {
+      const { data: clients } = await supabase.from('clients').select('id, nom').in('id', clientIds);
+      (clients || []).forEach(c => { clientsMap[c.id] = c.nom; });
+    }
+    renderVentes(sorted, clientsMap);
+    setCache('ventes', { sorted, clientsMap });
   }
 
   // --- PDF ---
