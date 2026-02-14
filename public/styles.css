@@ -524,13 +524,6 @@ input, select, textarea {
   color: var(--text-muted);
 }
 
-.dashboard-header-right {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 1rem;
-}
-
 .dashboard-filters {
   display: flex;
   flex-wrap: wrap;
@@ -676,6 +669,14 @@ input, select, textarea {
 
 .stock-alert {
   margin-bottom: 1rem;
+}
+
+.dashboard-footer {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
 }
 
 .dashboard-alert-title {
@@ -1208,10 +1209,6 @@ input, select, textarea {
   }
 
   .section-header > .btn {
-    width: 100%;
-  }
-
-  .dashboard-header-right {
     width: 100%;
   }
 
