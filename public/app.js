@@ -193,6 +193,10 @@
   });
 
   btnLogout && btnLogout.addEventListener('click', async () => {
+    if (realtimeChannel) {
+      supabase.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
     await supabase.auth.signOut();
     showAuthScreen();
   });
@@ -1598,10 +1602,62 @@
     });
   }
 
+  // --- Realtime Supabase (rafraîchissement automatique sans recharger la page) ---
+  let realtimeChannel = null;
+
+  function initRealtime() {
+    if (realtimeChannel) return;
+    const refreshClients = debounce(() => {
+      loadClients();
+      loadClientsSelect();
+    }, 400);
+    const refreshProduits = debounce(() => {
+      loadProduits();
+      loadProduitsSelect();
+    }, 400);
+    const refreshFournisseurs = debounce(() => {
+      loadFournisseurs();
+      loadFournisseursSelect();
+    }, 400);
+    const refreshVentes = debounce(() => {
+      loadVentes();
+      loadDettesClients();
+      loadHistoriqueReglements();
+      loadDashboard();
+    }, 400);
+    const refreshMouvements = debounce(() => {
+      loadMouvements();
+      loadDettesFournisseurs();
+      loadHistoriqueReglements();
+      loadDashboard();
+    }, 400);
+    const refreshReglements = debounce(() => {
+      loadDettesClients();
+      loadDettesFournisseurs();
+      loadHistoriqueReglements();
+      loadDashboard();
+    }, 400);
+
+    realtimeChannel = supabase
+      .channel('kouma-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => refreshClients())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'produits' }, () => refreshProduits())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fournisseurs' }, () => refreshFournisseurs())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ventes' }, () => refreshVentes())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ventes_lignes' }, () => refreshVentes())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mouvements' }, () => refreshMouvements())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reglements_clients' }, () => refreshReglements())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reglements_fournisseurs' }, () => refreshReglements())
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') console.log('[Kouma] Realtime activé');
+      });
+  }
+
   // --- Init (dashboard immédiat, autres onglets à la demande) ---
   function initApp() {
     tabLoaded.dashboard = true;
     loadDashboard();
+    initRealtime();
   }
 
   initAuth();
