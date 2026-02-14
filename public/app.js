@@ -517,11 +517,47 @@
     }
   }
 
+  async function exportStockExcel() {
+    try {
+      if (typeof XLSX === 'undefined') { showToast('Bibliothèque Excel non chargée. Rechargez la page.', 'error'); return; }
+      showToast('Export en cours...');
+      const { data: movData, error } = await supabase.from('mouvements').select('*').order('date', { ascending: false });
+      if (error) { showToast('Erreur: ' + error.message, 'error'); return; }
+      const prodIds = [...new Set((movData || []).map(m => m.produit_id).filter(Boolean))];
+      const fournIds = [...new Set((movData || []).map(m => m.fournisseur_id).filter(Boolean))];
+      const produitsMap = {}; const fournisseursMap = {};
+      if (prodIds.length) { const { data: p } = await supabase.from('produits').select('id, nom, reference').in('id', prodIds); (p || []).forEach(x => { produitsMap[x.id] = x.nom || x.reference || 'Produit'; }); }
+      if (fournIds.length) { const { data: f } = await supabase.from('fournisseurs').select('id, nom').in('id', fournIds); (f || []).forEach(x => { fournisseursMap[x.id] = x.nom; }); }
+      const getProd = (m) => produitsMap[m.produit_id] || 'Produit';
+      const getFourn = (m) => fournisseursMap[m.fournisseur_id] || m.provenance || '-';
+      const rows = (movData || []).map(m => ({
+        Date: formatDate(m.date),
+        Produit: getProd(m),
+        Type: m.type === 'entree' ? 'Entrée' : 'Sortie',
+        Quantité: Number(m.quantite) || 0,
+        Motif: m.motif || getFourn(m),
+        Fournisseur: getFourn(m),
+        'Montant total (FCFA)': Number(m.montant_total) || 0,
+        'Montant payé (FCFA)': Number(m.montant_paye) || 0
+      }));
+      if (rows.length === 0) showToast('Aucun mouvement à exporter (fichier vide généré)');
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Mouvements');
+      XLSX.writeFile(wb, 'stock-mouvements-kouma-fashion.xlsx');
+      showToast('Export téléchargé');
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur export: ' + (err.message || err), 'error');
+    }
+  }
+
   document.addEventListener('click', (e) => {
     const id = e.target.id;
     if (id === 'btn-export-produits') { e.preventDefault(); exportProduitsExcel(); }
     else if (id === 'btn-export-ventes') { e.preventDefault(); exportVentesExcel(); }
     else if (id === 'btn-export-dettes') { e.preventDefault(); exportDettesExcel(); }
+    else if (id === 'btn-export-stock') { e.preventDefault(); exportStockExcel(); }
   });
 
   // --- Stock / Mouvements ---
