@@ -509,7 +509,7 @@
       }
       const rows = sorted.map(v => ({
         'N° Facture': v.numero_facture || '',
-        Client: clientsMap[v.client_id] || '-',
+        Client: clientsMap[v.client_id] || 'Anonyme',
         'Total (FCFA)': Number(v.total) || 0,
         'Réduction (FCFA)': Number(v.reduction_totale) || 0,
         'Montant payé (FCFA)': Number(v.montant_paye) || 0,
@@ -543,7 +543,7 @@
       }
       const rowsClients = dataClients.map(v => ({
         Statut: Number(v.restant_a_payer) > 0 ? 'En cours' : 'Réglée',
-        Client: clientsMap[v.client_id] || '-',
+        Client: clientsMap[v.client_id] || 'Anonyme',
         'N° Facture': v.numero_facture || '',
         'Total (FCFA)': Number(v.total) || 0,
         'Payé (FCFA)': Number(v.montant_paye) || 0,
@@ -933,7 +933,7 @@
     let rows = data.filter(v => Number(v.restant_a_payer) > 0 || detteFilterClients !== 'en-cours');
     if (detteFilterClients === 'reglees') rows = data.filter(v => Number(v.restant_a_payer) <= 0);
     if (detteFilterClients === 'toutes') rows = data;
-    const clientNom = (v) => clientsMap[v.client_id] || 'Client inconnu';
+    const clientNom = (v) => clientsMap[v.client_id] || (v.client_id ? 'Client inconnu' : 'Anonyme');
     tbody.innerHTML = rows.map(v => `
       <tr>
         <td><span class="badge badge-${Number(v.restant_a_payer) > 0 ? 'warning' : 'success'}">${Number(v.restant_a_payer) > 0 ? 'En cours' : 'Réglée'}</span></td>
@@ -1256,7 +1256,7 @@
     supabase.from('clients').select('id, nom').order('nom').then(({ data }) => {
       const sel = document.getElementById('vente-client');
       if (!sel) return;
-      const first = sel.innerHTML.split('</option>')[0] + '</option>';
+      const first = '<option value="">Vente anonyme (sans client)</option>';
       sel.innerHTML = first + (data || []).map(c => `<option value="${c.id}">${c.nom}</option>`).join('');
     });
   }
@@ -1341,10 +1341,6 @@
     const clientFields = document.getElementById('vente-client-fields');
     const useNewClient = clientFields && !clientFields.classList.contains('hidden');
     let finalClientId = clientId || null;
-    if (!useNewClient && !finalClientId) {
-      showToast('Veuillez sélectionner un client ou créer un nouveau client.', 'error');
-      return;
-    }
     if (useNewClient) {
       const nom = document.getElementById('vente-nom').value.trim();
       if (!nom) { showToast('Le nom du client est obligatoire.', 'error'); return; }
@@ -1408,7 +1404,7 @@
   function renderVentes(sorted, clientsMap) {
     const tbody = document.getElementById('ventes-list');
     if (!tbody) return;
-    const clientNom = (v) => clientsMap[v.client_id] || '-';
+    const clientNom = (v) => clientsMap[v.client_id] || 'Anonyme';
     tbody.innerHTML = (sorted || []).map(v => `
       <tr>
         <td>${v.numero_facture || '-'}</td>
@@ -1535,7 +1531,7 @@
       doc.text('FACTURE ' + (vente.numero_facture || venteId), pageW / 2, 50, { align: 'center' });
       doc.setFontSize(10);
       doc.text('Date: ' + formatDate(vente.date), 20, 60);
-      doc.text('Client: ' + (client.nom || '-'), 20, 68);
+      doc.text('Client: ' + (client.nom || 'Anonyme'), 20, 68);
       doc.text('Tél: ' + (client.telephone || '-'), 20, 74);
       let y = 90;
       doc.setFontSize(9);
