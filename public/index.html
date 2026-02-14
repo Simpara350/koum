@@ -8,9 +8,14 @@
   <link rel="stylesheet" href="styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="auth-loading">
+  <!-- Écran de chargement initial (évite le flash) -->
+  <div id="auth-init-loading" class="auth-init-loading">
+    <div class="auth-init-spinner"></div>
+    <p>Chargement...</p>
+  </div>
   <!-- ÉCRAN DE CONNEXION -->
-  <div id="auth-screen" class="auth-screen">
+  <div id="auth-screen" class="auth-screen hidden">
     <div class="auth-card">
       <div class="auth-logo">
         <img src="images/logo.jpeg" alt="Kouma Fashion" class="auth-logo-img">
@@ -445,7 +450,7 @@
                 <tr>
                   <th>Statut</th>
                   <th>Fournisseur</th>
-                  <th>Provenance</th>
+                  <th>Produit</th>
                   <th>Total</th>
                   <th>Payé</th>
                   <th>Reste</th>
@@ -457,8 +462,39 @@
             </table>
           </div>
         </div>
+
+        <!-- Historique des règlements (en bas, comme l'onglet Ventes) -->
+        <div class="card vente-history" style="margin-top: 1.5rem;">
+          <h3>Historique des règlements</h3>
+          <p class="form-hint" style="margin-bottom: 1rem;">Règlements partiels ou totaux des dettes clients et fournisseurs.</p>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Référence</th>
+                  <th>Montant (FCFA)</th>
+                  <th>Document</th>
+                </tr>
+              </thead>
+              <tbody id="historique-reglements-list"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
     </main>
+
+  <!-- MODAL HISTORIQUE RÈGLEMENTS (conservé pour détail par dette si besoin) -->
+  <div id="modal-historique-reglements" class="modal" onclick="if(event.target===this) closeModal('modal-historique-reglements')">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <h2 id="modal-historique-title">Historique des règlements</h2>
+      <div id="modal-historique-content"></div>
+      <div class="modal-actions" style="margin-top: 1rem;">
+        <button type="button" class="btn btn-outline" onclick="closeModal('modal-historique-reglements')">Fermer</button>
+      </div>
+    </div>
+  </div>
   </div>
 
   <!-- MODAL AFFICHAGE PDF -->

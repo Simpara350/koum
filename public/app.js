@@ -88,6 +88,18 @@
   }
 
   // --- Auth ---
+  function translateAuthError(msg, isSignup = false) {
+    if (!msg) return 'Une erreur est survenue.';
+    const m = String(msg).toLowerCase();
+    if (m.includes('invalid') && m.includes('credential')) return 'Email ou mot de passe incorrect.';
+    if (m.includes('email') && m.includes('confirm')) return 'Veuillez confirmer votre email en cliquant sur le lien reçu.';
+    if (m.includes('already') || m.includes('registered')) return 'Cet email est déjà utilisé. Créez un compte avec une autre adresse.';
+    if (m.includes('password') && m.includes('weak')) return 'Le mot de passe doit contenir au moins 6 caractères.';
+    if (m.includes('invalid email')) return 'Adresse email invalide.';
+    if (m.includes('user not found')) return 'Aucun compte avec cet email.';
+    return msg;
+  }
+
   function showAuthScreen() {
     if (authScreen) authScreen.classList.remove('hidden');
     if (appMain) appMain.classList.add('hidden');
@@ -101,6 +113,7 @@
 
   async function initAuth() {
     const { data: { session } } = await supabase.auth.getSession();
+    document.body.classList.remove('auth-loading');
     if (session) {
       showApp();
       return;
@@ -113,10 +126,18 @@
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     if (authError) authError.classList.add('hidden');
+    if (!email) {
+      if (authError) { authError.textContent = 'Veuillez entrer votre adresse email.'; authError.classList.remove('hidden'); }
+      return;
+    }
+    if (!password) {
+      if (authError) { authError.textContent = 'Veuillez entrer votre mot de passe.'; authError.classList.remove('hidden'); }
+      return;
+    }
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       if (authError) {
-        authError.textContent = error.message || 'Erreur de connexion';
+        authError.textContent = translateAuthError(error.message);
         authError.classList.remove('hidden');
       }
       return;
@@ -130,9 +151,17 @@
     const password = document.getElementById('signup-password').value;
     const confirm = document.getElementById('signup-password-confirm').value;
     if (authSignupError) authSignupError.classList.add('hidden');
+    if (!email) {
+      if (authSignupError) { authSignupError.textContent = 'Veuillez entrer une adresse email.'; authSignupError.classList.remove('hidden'); }
+      return;
+    }
+    if (password.length < 6) {
+      if (authSignupError) { authSignupError.textContent = 'Le mot de passe doit contenir au moins 6 caractères.'; authSignupError.classList.remove('hidden'); }
+      return;
+    }
     if (password !== confirm) {
       if (authSignupError) {
-        authSignupError.textContent = 'Les mots de passe ne correspondent pas.';
+        authSignupError.textContent = 'Les deux mots de passe ne correspondent pas.';
         authSignupError.classList.remove('hidden');
       }
       return;
@@ -140,7 +169,7 @@
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) {
       if (authSignupError) {
-        authSignupError.textContent = error.message || 'Erreur lors de la création du compte';
+        authSignupError.textContent = translateAuthError(error.message, true);
         authSignupError.classList.remove('hidden');
       }
       return;
@@ -153,12 +182,14 @@
     document.getElementById('auth-login-form').classList.add('hidden');
     document.getElementById('auth-signup-form').classList.remove('hidden');
     if (authError) authError.classList.add('hidden');
+    if (authSignupError) authSignupError.classList.add('hidden');
   });
 
   btnShowLogin && btnShowLogin.addEventListener('click', () => {
     document.getElementById('auth-signup-form').classList.add('hidden');
     document.getElementById('auth-login-form').classList.remove('hidden');
     if (authSignupError) authSignupError.classList.add('hidden');
+    if (authError) authError.classList.add('hidden');
   });
 
   btnLogout && btnLogout.addEventListener('click', async () => {
@@ -185,7 +216,7 @@
       else if (tabId === 'stock') loadMouvements();
       else if (tabId === 'clients') { loadClients(); loadFournisseurs(); }
       else if (tabId === 'ventes') { loadVentes(); loadProduitsSelect(); loadClientsSelect(); }
-      else if (tabId === 'dettes') { loadDettesClients(); loadDettesFournisseurs(); }
+      else if (tabId === 'dettes') { loadDettesClients(); loadDettesFournisseurs(); loadHistoriqueReglements(); }
     }
   }
 
@@ -355,7 +386,7 @@
     const tbody = document.getElementById('produits-list');
     if (!tbody) return;
     if (error) {
-      if (!cached) tbody.innerHTML = '<tr><td colspan="7">Erreur: ' + error.message + '</td></tr>';
+      if (!cached) tbody.innerHTML = '<tr><td colspan="7">Impossible de charger les produits. Vérifiez votre connexion.</td></tr>';
       return;
     }
     renderProduits(data || []);
@@ -387,7 +418,7 @@
   async function deleteProduit(id) {
     if (!confirm('Supprimer ce produit ?')) return;
     const { error } = await supabase.from('produits').delete().eq('id', id);
-    if (error) showToast('Erreur: ' + error.message, 'error');
+    if (error) showToast('Erreur lors de la suppression. Réessayez.', 'error');
     else { showToast('Produit supprimé'); loadProduits(); loadDashboard(); }
   }
 
@@ -395,19 +426,23 @@
 
   document.getElementById('form-produit')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const nom = document.getElementById('produit-nom').value.trim();
+    const prixVente = Number(document.getElementById('produit-prix-vente').value);
+    if (!nom) { showToast('Le nom du produit est obligatoire.', 'error'); return; }
+    if (isNaN(prixVente) || prixVente < 0) { showToast('Le prix de vente doit être un nombre positif.', 'error'); return; }
     const id = document.getElementById('produit-id').value;
     const payload = {
-      nom: document.getElementById('produit-nom').value.trim(),
+      nom,
       reference: document.getElementById('produit-reference').value.trim() || null,
       categorie: document.getElementById('produit-categorie').value.trim() || null,
       prix_achat: Number(document.getElementById('produit-prix-achat').value) || 0,
-      prix_vente: Number(document.getElementById('produit-prix-vente').value) || 0
+      prix_vente: prixVente
     };
     if (!id) payload.quantite = Number(document.getElementById('produit-quantite').value) || 0;
     const { error } = id
       ? await supabase.from('produits').update(payload).eq('id', id)
       : await supabase.from('produits').insert(payload);
-    if (error) showToast('Erreur: ' + error.message, 'error');
+    if (error) showToast('Erreur lors de l\'enregistrement. Réessayez.', 'error');
     else { showToast('Produit enregistré'); closeModal('modal-produit'); loadProduits(); loadDashboard(); }
   });
 
@@ -438,7 +473,7 @@
       if (typeof XLSX === 'undefined') { showToast('Bibliothèque Excel non chargée. Rechargez la page.', 'error'); return; }
       showToast('Export en cours...');
       const { data, error } = await supabase.from('produits').select('*').order('nom');
-      if (error) { showToast('Erreur: ' + error.message, 'error'); return; }
+      if (error) { showToast('Erreur lors du chargement. Réessayez.', 'error'); return; }
       const rows = (data || []).map(p => ({
         Référence: p.reference || '',
         Nom: p.nom || '',
@@ -455,7 +490,7 @@
       showToast('Export téléchargé');
     } catch (err) {
       console.error(err);
-      showToast('Erreur export: ' + (err.message || err), 'error');
+      showToast('Erreur lors de l\'export. Réessayez.', 'error');
     }
   }
 
@@ -464,7 +499,7 @@
       if (typeof XLSX === 'undefined') { showToast('Bibliothèque Excel non chargée. Rechargez la page.', 'error'); return; }
       showToast('Export en cours...');
       const { data: ventesData, error } = await supabase.from('ventes').select('*');
-      if (error) { showToast('Erreur: ' + error.message, 'error'); return; }
+      if (error) { showToast('Erreur lors du chargement. Réessayez.', 'error'); return; }
       const sorted = (ventesData || []).slice().sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
       const clientIds = [...new Set(sorted.map(v => v.client_id).filter(Boolean))];
       const clientsMap = {};
@@ -489,7 +524,7 @@
       showToast('Export téléchargé');
     } catch (err) {
       console.error(err);
-      showToast('Erreur export: ' + (err.message || err), 'error');
+      showToast('Erreur lors de l\'export. Réessayez.', 'error');
     }
   }
 
@@ -541,7 +576,7 @@
       showToast('Export téléchargé');
     } catch (err) {
       console.error(err);
-      showToast('Erreur export: ' + (err.message || err), 'error');
+      showToast('Erreur lors de l\'export. Réessayez.', 'error');
     }
   }
 
@@ -550,7 +585,7 @@
       if (typeof XLSX === 'undefined') { showToast('Bibliothèque Excel non chargée. Rechargez la page.', 'error'); return; }
       showToast('Export en cours...');
       const { data: movData, error } = await supabase.from('mouvements').select('*').order('date', { ascending: false });
-      if (error) { showToast('Erreur: ' + error.message, 'error'); return; }
+      if (error) { showToast('Erreur lors du chargement. Réessayez.', 'error'); return; }
       const prodIds = [...new Set((movData || []).map(m => m.produit_id).filter(Boolean))];
       const fournIds = [...new Set((movData || []).map(m => m.fournisseur_id).filter(Boolean))];
       const produitsMap = {}; const fournisseursMap = {};
@@ -576,7 +611,7 @@
       showToast('Export téléchargé');
     } catch (err) {
       console.error(err);
-      showToast('Erreur export: ' + (err.message || err), 'error');
+      showToast('Erreur lors de l\'export. Réessayez.', 'error');
     }
   }
 
@@ -707,7 +742,8 @@
   document.getElementById('form-mouvement')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const mode = document.getElementById('mouvement-mode').value;
-    const qte = Number(document.getElementById('mouvement-quantite').value) || 1;
+    const qte = Number(document.getElementById('mouvement-quantite').value) || 0;
+    if (qte < 1) { showToast('La quantité doit être au moins 1.', 'error'); return; }
     const provenance = document.getElementById('mouvement-provenance').value.trim() || null;
     const fournisseurId = document.getElementById('mouvement-fournisseur-select').value || null;
     const fournisseurNom = document.getElementById('mouvement-fournisseur').value.trim() || null;
@@ -717,17 +753,19 @@
 
     if (mode === 'existant') {
       produitId = document.getElementById('mouvement-produit').value;
-      if (!produitId) { showToast('Sélectionnez un produit', 'error'); return; }
+      if (!produitId) { showToast('Veuillez sélectionner un produit.', 'error'); return; }
     } else {
       const nom = document.getElementById('mouvement-nom').value.trim();
+      const pv = Number(document.getElementById('mouvement-prix-vente').value);
+      if (!nom) { showToast('Le nom du produit est obligatoire.', 'error'); return; }
+      if (isNaN(pv) || pv < 0) { showToast('Le prix de vente doit être un nombre positif.', 'error'); return; }
       const ref = document.getElementById('mouvement-reference').value.trim() || null;
       const cat = document.getElementById('mouvement-categorie').value.trim() || null;
       const pa = Number(document.getElementById('mouvement-prix-achat').value) || 0;
-      const pv = Number(document.getElementById('mouvement-prix-vente').value) || 0;
       const { data: newProd, error: errProd } = await supabase.from('produits').insert({
         nom, reference: ref, categorie: cat, prix_achat: pa, prix_vente: pv, quantite: 0
       }).select('id').single();
-      if (errProd || !newProd) { showToast('Erreur création produit: ' + (errProd?.message || ''), 'error'); return; }
+      if (errProd || !newProd) { showToast('Erreur lors de la création du produit. Réessayez.', 'error'); return; }
       produitId = newProd.id;
     }
 
@@ -743,7 +781,7 @@
       restant_a_payer: Math.max(0, montantTotal - montantPaye)
     }).select('id').single();
 
-    if (error) { showToast('Erreur: ' + error.message, 'error'); return; }
+    if (error) { showToast('Erreur lors de l\'enregistrement. Réessayez.', 'error'); return; }
 
     const { data: prod } = await supabase.from('produits').select('quantite').eq('id', produitId).single();
     if (prod) await supabase.from('produits').update({ quantite: (Number(prod.quantite) || 0) + qte }).eq('id', produitId);
@@ -805,9 +843,11 @@
   document.getElementById('btn-add-client')?.addEventListener('click', () => openClientModal());
   document.getElementById('form-client')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const nom = document.getElementById('client-nom').value.trim();
+    if (!nom) { showToast('Le nom du client est obligatoire.', 'error'); return; }
     const id = document.getElementById('client-id').value;
     const payload = {
-      nom: document.getElementById('client-nom').value.trim(),
+      nom,
       telephone: document.getElementById('client-telephone').value.trim() || null,
       email: document.getElementById('client-email').value.trim() || null,
       adresse: document.getElementById('client-adresse').value.trim() || null
@@ -815,7 +855,7 @@
     const { error } = id
       ? await supabase.from('clients').update(payload).eq('id', id)
       : await supabase.from('clients').insert(payload);
-    if (error) showToast('Erreur: ' + error.message, 'error');
+    if (error) showToast('Erreur lors de l\'enregistrement. Réessayez.', 'error');
     else { showToast('Client enregistré'); closeModal('modal-client'); loadClients(); loadClientsSelect(); }
   });
 
@@ -867,9 +907,11 @@
   document.getElementById('btn-add-fournisseur')?.addEventListener('click', () => openFournisseurModal());
   document.getElementById('form-fournisseur')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const nom = document.getElementById('fournisseur-nom').value.trim();
+    if (!nom) { showToast('Le nom du fournisseur est obligatoire.', 'error'); return; }
     const id = document.getElementById('fournisseur-id').value;
     const payload = {
-      nom: document.getElementById('fournisseur-nom').value.trim(),
+      nom,
       telephone: document.getElementById('fournisseur-telephone').value.trim() || null,
       email: document.getElementById('fournisseur-email').value.trim() || null,
       adresse: document.getElementById('fournisseur-adresse').value.trim() || null
@@ -877,7 +919,7 @@
     const { error } = id
       ? await supabase.from('fournisseurs').update(payload).eq('id', id)
       : await supabase.from('fournisseurs').insert(payload);
-    if (error) showToast('Erreur: ' + error.message, 'error');
+    if (error) showToast('Erreur lors de l\'enregistrement. Réessayez.', 'error');
     else { showToast('Fournisseur enregistré'); closeModal('modal-fournisseur'); loadFournisseurs(); loadFournisseursSelect(); }
   });
 
@@ -901,10 +943,14 @@
         <td>${formatNumber(v.montant_paye)}</td>
         <td>${formatNumber(v.restant_a_payer)}</td>
         <td>${formatDate(v.date || v.created_at)}</td>
-        <td>${Number(v.restant_a_payer) > 0 ? `<button class="btn btn-sm btn-primary" data-regler-client="${v.id}">Régler</button>` : '-'}</td>
+        <td class="dettes-actions">
+          <a href="#" class="link-pdf btn-link-sm" data-facture-vente="${v.id}">Facture</a>
+          ${Number(v.restant_a_payer) > 0 ? `<button class="btn btn-sm btn-primary" data-regler-client="${v.id}">Régler</button>` : ''}
+        </td>
       </tr>
     `).join('');
     tbody.querySelectorAll('[data-regler-client]').forEach(b => b.addEventListener('click', () => openReglementClient(b.dataset.reglerClient)));
+    tbody.querySelectorAll('[data-facture-vente]').forEach(a => { a.addEventListener('click', (e) => { e.preventDefault(); telechargerFacture(a.dataset.factureVente); }); });
   }
 
   async function loadDettesClients() {
@@ -913,7 +959,7 @@
     const cached = getCache('dettes_clients');
     if (cached?.data) renderDettesClients(cached.data, cached.clientsMap || {});
     const { data: ventesData, error } = await supabase.from('ventes').select('*');
-    if (error) { if (!cached?.data) tbody.innerHTML = '<tr><td colspan="8">Erreur: ' + (error.message || '') + '</td></tr>'; return; }
+    if (error) { if (!cached?.data) tbody.innerHTML = '<tr><td colspan="8">Impossible de charger les dettes. Réessayez.</td></tr>'; return; }
     let data = (ventesData || []).filter(v => v.restant_a_payer != null);
     data.sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
     const clientIds = [...new Set(data.map(v => v.client_id).filter(Boolean))];
@@ -943,10 +989,14 @@
         <td>${formatNumber(m.montant_paye)}</td>
         <td>${formatNumber(m.restant_a_payer)}</td>
         <td>${formatDate(m.date)}</td>
-        <td>${(Number(m.restant_a_payer) || 0) > 0 ? `<button class="btn btn-sm btn-primary" data-regler-fournisseur="${m.id}">Régler</button>` : '-'}</td>
+        <td class="dettes-actions">
+          <a href="#" class="link-pdf btn-link-sm" data-bon-mouvement="${m.id}">Bon</a>
+          ${(Number(m.restant_a_payer) || 0) > 0 ? `<button class="btn btn-sm btn-primary" data-regler-fournisseur="${m.id}">Régler</button>` : ''}
+        </td>
       </tr>
     `).join('');
     tbody.querySelectorAll('[data-regler-fournisseur]').forEach(b => b.addEventListener('click', () => openReglementFournisseur(b.dataset.reglerFournisseur)));
+    tbody.querySelectorAll('[data-bon-mouvement]').forEach(a => { a.addEventListener('click', (e) => { e.preventDefault(); telechargerBonReception(a.dataset.bonMouvement); }); });
   }
 
   async function loadDettesFournisseurs() {
@@ -964,6 +1014,107 @@
     if (fournIds.length) { const { data: f } = await supabase.from('fournisseurs').select('id, nom').in('id', fournIds); (f || []).forEach(x => { fournisseursMap[x.id] = x.nom; }); }
     renderDettesFournisseurs(data, produitsMap, fournisseursMap);
     setCache('dettes_fournisseurs', { data, produitsMap, fournisseursMap });
+  }
+
+  async function loadHistoriqueReglements() {
+    const tbody = document.getElementById('historique-reglements-list');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Chargement...</td></tr>';
+    try {
+      const [resClients, resFournisseurs] = await Promise.all([
+        supabase.from('reglements_clients').select('vente_id, montant, date').order('date', { ascending: false }),
+        supabase.from('reglements_fournisseurs').select('mouvement_id, montant, date').order('date', { ascending: false })
+      ]);
+      if (resClients.error || resFournisseurs.error) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Tables reglements non trouvées. Exécutez create_reglements.sql.</td></tr>';
+        return;
+      }
+      const regClients = resClients.data || [];
+      const regFourn = resFournisseurs.data || [];
+      const rows = [];
+      if (regClients.length) {
+        const venteIds = [...new Set(regClients.map(r => r.vente_id))];
+        const { data: ventes } = await supabase.from('ventes').select('id, numero_facture, client_id').in('id', venteIds);
+        const ventesMap = {};
+        (ventes || []).forEach(v => { ventesMap[v.id] = v; });
+        const clientIds = [...new Set((ventes || []).map(v => v.client_id).filter(Boolean))];
+        const clientsMap = {};
+        if (clientIds.length) {
+          const { data: clients } = await supabase.from('clients').select('id, nom').in('id', clientIds);
+          (clients || []).forEach(c => { clientsMap[c.id] = c.nom; });
+        }
+        regClients.forEach(r => {
+          const v = ventesMap[r.vente_id];
+          const ref = v ? (v.numero_facture || `Vente #${r.vente_id}`) : `Vente #${r.vente_id}`;
+          const clientNom = v && clientsMap[v.client_id] ? clientsMap[v.client_id] : '';
+          rows.push({
+            date: r.date,
+            type: 'Client',
+            reference: clientNom ? `${ref} (${clientNom})` : ref,
+            montant: r.montant,
+            venteId: r.vente_id,
+            mouvementId: null
+          });
+        });
+      }
+      if (regFourn.length) {
+        const movIds = [...new Set(regFourn.map(r => r.mouvement_id))];
+        const { data: mouvements } = await supabase.from('mouvements').select('id, fournisseur_id, produit_id, provenance').in('id', movIds);
+        const movMap = {};
+        (mouvements || []).forEach(m => { movMap[m.id] = m; });
+        const fournIds = [...new Set((mouvements || []).map(m => m.fournisseur_id).filter(Boolean))];
+        const prodIds = [...new Set((mouvements || []).map(m => m.produit_id).filter(Boolean))];
+        const fournisseursMap = {}; const produitsMap = {};
+        if (fournIds.length) {
+          const { data: f } = await supabase.from('fournisseurs').select('id, nom').in('id', fournIds);
+          (f || []).forEach(x => { fournisseursMap[x.id] = x.nom; });
+        }
+        if (prodIds.length) {
+          const { data: p } = await supabase.from('produits').select('id, nom').in('id', prodIds);
+          (p || []).forEach(x => { produitsMap[x.id] = x.nom; });
+        }
+        regFourn.forEach(r => {
+          const m = movMap[r.mouvement_id];
+          const fournNom = m && fournisseursMap[m.fournisseur_id] ? fournisseursMap[m.fournisseur_id] : (m?.provenance || '-');
+          const prodNom = m && produitsMap[m.produit_id] ? produitsMap[m.produit_id] : '-';
+          const ref = `Bon #${r.mouvement_id} - ${fournNom}${prodNom ? ' / ' + prodNom : ''}`;
+          rows.push({
+            date: r.date,
+            type: 'Fournisseur',
+            reference: ref,
+            montant: r.montant,
+            venteId: null,
+            mouvementId: r.mouvement_id
+          });
+        });
+      }
+      rows.sort((a, b) => new Date(b.date) - new Date(a.date));
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Aucun règlement enregistré.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(row => `
+        <tr>
+          <td>${formatDate(row.date)}</td>
+          <td>${row.type}</td>
+          <td>${row.reference}</td>
+          <td>${formatNumber(row.montant)}</td>
+          <td>
+            ${row.venteId ? `<a href="#" class="link-pdf btn-link-sm" data-histo-facture="${row.venteId}">Facture</a>` : ''}
+            ${row.mouvementId ? `<a href="#" class="link-pdf btn-link-sm" data-histo-bon="${row.mouvementId}">Bon</a>` : ''}
+          </td>
+        </tr>
+      `).join('');
+      tbody.querySelectorAll('[data-histo-facture]').forEach(a => {
+        a.addEventListener('click', (e) => { e.preventDefault(); telechargerFacture(a.dataset.histoFacture); });
+      });
+      tbody.querySelectorAll('[data-histo-bon]').forEach(a => {
+        a.addEventListener('click', (e) => { e.preventDefault(); telechargerBonReception(a.dataset.histoBon); });
+      });
+    } catch (err) {
+      console.error(err);
+      tbody.innerHTML = '<tr><td colspan="5" class="text-muted">Impossible de charger l\'historique. Vérifiez que les tables reglements_clients et reglements_fournisseurs existent.</td></tr>';
+    }
   }
 
   document.querySelectorAll('.filter-btn-small[data-dette-filter="clients"]').forEach(btn => {
@@ -986,17 +1137,74 @@
     openModal('modal-reglement-client');
   }
 
+  async function openHistoriqueClient(venteId) {
+    document.getElementById('modal-historique-title').textContent = 'Historique des règlements (dette client)';
+    const content = document.getElementById('modal-historique-content');
+    content.innerHTML = '<p class="text-muted">Chargement...</p>';
+    openModal('modal-historique-reglements');
+    const { data: v } = await supabase.from('ventes').select('numero_facture, total, montant_paye, restant_a_payer').eq('id', venteId).single();
+    const { data: reglements } = await supabase.from('reglements_clients').select('montant, date').eq('vente_id', venteId).order('date', { ascending: false });
+    let html = '';
+    if (v) {
+      html += `<p><strong>Facture :</strong> ${v.numero_facture || '-'} | <strong>Total :</strong> ${formatNumber(v.total)} FCFA</p>`;
+      html += `<p><strong>Payé :</strong> ${formatNumber(v.montant_paye)} FCFA | <strong>Reste :</strong> ${formatNumber(v.restant_a_payer)} FCFA</p>`;
+    }
+    if (reglements && reglements.length) {
+      html += '<table class="data-table" style="margin-top: 1rem;"><thead><tr><th>Date</th><th>Montant</th></tr></thead><tbody>';
+      reglements.forEach(r => { html += `<tr><td>${formatDate(r.date)}</td><td>${formatNumber(r.montant)} FCFA</td></tr>`; });
+      html += '</tbody></table>';
+    } else {
+      html += '<p class="text-muted" style="margin-top: 0.5rem;">Aucun détail de règlement enregistré. Les paiements futurs apparaîtront ici.</p>';
+    }
+    content.innerHTML = html;
+  }
+
+  async function openHistoriqueFournisseur(mouvementId) {
+    document.getElementById('modal-historique-title').textContent = 'Historique des règlements (dette fournisseur)';
+    const content = document.getElementById('modal-historique-content');
+    content.innerHTML = '<p class="text-muted">Chargement...</p>';
+    openModal('modal-historique-reglements');
+    const { data: m } = await supabase.from('mouvements').select('montant_total, montant_paye, restant_a_payer, provenance').eq('id', mouvementId).single();
+    const { data: reglements } = await supabase.from('reglements_fournisseurs').select('montant, date').eq('mouvement_id', mouvementId).order('date', { ascending: false });
+    let html = '';
+    if (m) {
+      html += `<p><strong>Total :</strong> ${formatNumber(m.montant_total)} FCFA | <strong>Payé :</strong> ${formatNumber(m.montant_paye)} FCFA | <strong>Reste :</strong> ${formatNumber(m.restant_a_payer)} FCFA</p>`;
+    }
+    if (reglements && reglements.length) {
+      html += '<table class="data-table" style="margin-top: 1rem;"><thead><tr><th>Date</th><th>Montant</th></tr></thead><tbody>';
+      reglements.forEach(r => { html += `<tr><td>${formatDate(r.date)}</td><td>${formatNumber(r.montant)} FCFA</td></tr>`; });
+      html += '</tbody></table>';
+    } else {
+      html += '<p class="text-muted" style="margin-top: 0.5rem;">Aucun détail de règlement enregistré. Les paiements futurs apparaîtront ici.</p>';
+    }
+    content.innerHTML = html;
+  }
+
   document.getElementById('form-reglement-client')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
     const venteId = document.getElementById('reglement-vente-id').value;
     const montant = Number(document.getElementById('reglement-client-montant').value) || 0;
-    const { data: v } = await supabase.from('ventes').select('montant_paye, restant_a_payer').eq('id', venteId).single();
-    if (!v) { showToast('Vente introuvable', 'error'); return; }
-    const newPaye = (Number(v.montant_paye) || 0) + montant;
-    const restant = Math.max(0, (Number(v.restant_a_payer) || 0) - montant);
-    const { error } = await supabase.from('ventes').update({ montant_paye: newPaye, restant_a_payer: restant }).eq('id', venteId);
-    if (error) showToast('Erreur: ' + error.message, 'error');
-    else { showToast('Paiement enregistré'); closeModal('modal-reglement-client'); loadDettesClients(); loadDashboard(); }
+    if (montant <= 0) { showToast('Veuillez entrer un montant à régler.', 'error'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'En cours...'; }
+    try {
+      const { data: v } = await supabase.from('ventes').select('montant_paye, restant_a_payer').eq('id', venteId).single();
+      if (!v) { showToast('Vente introuvable', 'error'); return; }
+      const newPaye = (Number(v.montant_paye) || 0) + montant;
+      const restant = Math.max(0, (Number(v.restant_a_payer) || 0) - montant);
+      const [updRes, insRes] = await Promise.all([
+        supabase.from('ventes').update({ montant_paye: newPaye, restant_a_payer: restant }).eq('id', venteId),
+        supabase.from('reglements_clients').insert({ vente_id: venteId, montant })
+      ]);
+      if (updRes.error || insRes.error) { showToast('Erreur lors de l\'enregistrement. Réessayez.', 'error'); return; }
+      showToast('Paiement enregistré');
+      closeModal('modal-reglement-client');
+      loadDettesClients();
+      loadHistoriqueReglements();
+      loadDashboard();
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; }
+    }
   });
 
   function openReglementFournisseur(mouvementId) {
@@ -1006,15 +1214,29 @@
 
   document.getElementById('form-reglement-fournisseur')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const btn = e.target.querySelector('button[type="submit"]');
     const movId = document.getElementById('reglement-mouvement-id').value;
     const montant = Number(document.getElementById('reglement-fournisseur-montant').value) || 0;
-    const { data: m } = await supabase.from('mouvements').select('montant_paye, restant_a_payer').eq('id', movId).single();
-    if (!m) { showToast('Mouvement introuvable', 'error'); return; }
-    const newPaye = (Number(m.montant_paye) || 0) + montant;
-    const restant = Math.max(0, (Number(m.restant_a_payer) || 0) - montant);
-    const { error } = await supabase.from('mouvements').update({ montant_paye: newPaye, restant_a_payer: restant }).eq('id', movId);
-    if (error) showToast('Erreur: ' + error.message, 'error');
-    else { showToast('Paiement enregistré'); closeModal('modal-reglement-fournisseur'); loadDettesFournisseurs(); loadDashboard(); }
+    if (montant <= 0) { showToast('Veuillez entrer un montant à régler.', 'error'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'En cours...'; }
+    try {
+      const { data: m } = await supabase.from('mouvements').select('montant_paye, restant_a_payer').eq('id', movId).single();
+      if (!m) { showToast('Mouvement introuvable', 'error'); return; }
+      const newPaye = (Number(m.montant_paye) || 0) + montant;
+      const restant = Math.max(0, (Number(m.restant_a_payer) || 0) - montant);
+      const [updRes, insRes] = await Promise.all([
+        supabase.from('mouvements').update({ montant_paye: newPaye, restant_a_payer: restant }).eq('id', movId),
+        supabase.from('reglements_fournisseurs').insert({ mouvement_id: movId, montant })
+      ]);
+      if (updRes.error || insRes.error) { showToast('Erreur lors de l\'enregistrement. Réessayez.', 'error'); return; }
+      showToast('Paiement enregistré');
+      closeModal('modal-reglement-fournisseur');
+      loadDettesFournisseurs();
+      loadHistoriqueReglements();
+      loadDashboard();
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Enregistrer le paiement'; }
+    }
   });
 
   // --- Ventes ---
@@ -1087,11 +1309,11 @@
   document.getElementById('btn-add-produit-vente')?.addEventListener('click', () => {
     const sel = document.getElementById('vente-produit');
     const opt = sel.options[sel.selectedIndex];
-    if (!opt || !opt.value) { showToast('Sélectionnez un produit'); return; }
+    if (!opt || !opt.value) { showToast('Veuillez sélectionner un produit.', 'error'); return; }
     const qte = Number(document.getElementById('vente-quantite').value) || 1;
     const prix = Number(opt.dataset.prix) || 0;
     const stock = Number(opt.dataset.qte) || 0;
-    if (qte > stock) { showToast('Stock insuffisant'); return; }
+    if (qte > stock) { showToast('Stock insuffisant pour cette quantité.', 'error'); return; }
     const reducUnit = 0;
     const sousTotal = (prix - reducUnit) * qte;
     panier.push({
@@ -1120,19 +1342,19 @@
     const useNewClient = clientFields && !clientFields.classList.contains('hidden');
     let finalClientId = clientId || null;
     if (!useNewClient && !finalClientId) {
-      showToast('Sélectionnez un client ou créez-en un nouveau', 'error');
+      showToast('Veuillez sélectionner un client ou créer un nouveau client.', 'error');
       return;
     }
     if (useNewClient) {
       const nom = document.getElementById('vente-nom').value.trim();
-      if (!nom) { showToast('Nom client requis'); return; }
+      if (!nom) { showToast('Le nom du client est obligatoire.', 'error'); return; }
       const { data: newC } = await supabase.from('clients').insert({
         nom,
         telephone: document.getElementById('vente-telephone').value.trim() || null,
         email: document.getElementById('vente-email').value.trim() || null,
         adresse: document.getElementById('vente-adresse').value.trim() || null
       }).select('id').single();
-      if (!newC) { showToast('Erreur création client'); return; }
+      if (!newC) { showToast('Erreur lors de la création du client. Réessayez.', 'error'); return; }
       finalClientId = newC.id;
     }
     const reductionTotale = Number(document.getElementById('vente-reduction-totale').value) || 0;
@@ -1151,7 +1373,7 @@
       restant_a_payer: restant > 0 ? restant : null
     };
     const { data: vente, error: errV } = await supabase.from('ventes').insert(payloadVente).select('*').single();
-    if (errV || !vente) { showToast('Erreur vente: ' + (errV?.message || ''), 'error'); return; }
+    if (errV || !vente) { showToast('Erreur lors de l\'enregistrement de la vente. Réessayez.', 'error'); return; }
     const venteId = vente.id ?? vente.vente_id;
     for (const l of panier) {
       await supabase.from('ventes_lignes').insert({
@@ -1205,7 +1427,7 @@
     const cached = getCache('ventes');
     if (cached?.sorted) renderVentes(cached.sorted, cached.clientsMap || {});
     const { data: ventesData, error } = await supabase.from('ventes').select('*');
-    if (error) { if (!cached?.sorted) tbody.innerHTML = '<tr><td colspan="5">Erreur: ' + (error.message || '') + '</td></tr>'; return; }
+    if (error) { if (!cached?.sorted) tbody.innerHTML = '<tr><td colspan="5">Impossible de charger les ventes. Réessayez.</td></tr>'; return; }
     const sorted = (ventesData || []).slice().sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
     const clientIds = [...new Set(sorted.map(v => v.client_id).filter(Boolean))];
     const clientsMap = {};
