@@ -1,0 +1,9 @@
+{
+  "name": "kouma-fashion",
+  "version": "1.0.0",
+  "description": "Application de gestion de boutique - Frontend + Supabase (sans backend)",
+  "scripts": {
+    "serve": "npx serve public -l 3000",
+    "start": "npx serve public -l 3000"
+  }
+}

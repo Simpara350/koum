@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Kouma Fashion - Gestion Boutique</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- ÉCRAN DE CONNEXION -->
+  <div id="auth-screen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <img src="images/logo.jpeg" alt="Kouma Fashion" class="auth-logo-img">
+        <h1>Kouma Fashion</h1>
+        <p class="auth-tagline">Gestion de boutique</p>
+      </div>
+      <div id="auth-login-form" class="auth-form">
+        <h2>Connexion</h2>
+        <form id="form-login">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="login-email" class="input" placeholder="votre@email.com" required>
+          </div>
+          <div class="form-group">
+            <label>Mot de passe</label>
+            <input type="password" id="login-password" class="input" placeholder="••••••••" required>
+          </div>
+          <p id="auth-error" class="auth-error hidden"></p>
+          <button type="submit" class="btn btn-primary btn-block">Se connecter</button>
+        </form>
+        <p class="auth-switch">Pas encore de compte ? <button type="button" class="btn-link" id="btn-show-signup">Créer un compte</button></p>
+      </div>
+      <div id="auth-signup-form" class="auth-form hidden">
+        <h2>Créer un compte</h2>
+        <form id="form-signup">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="signup-email" class="input" placeholder="votre@email.com" required>
+          </div>
+          <div class="form-group">
+            <label>Mot de passe</label>
+            <input type="password" id="signup-password" class="input" placeholder="Min. 6 caractères" minlength="6" required>
+          </div>
+          <div class="form-group">
+            <label>Confirmer le mot de passe</label>
+            <input type="password" id="signup-password-confirm" class="input" placeholder="••••••••" required>
+          </div>
+          <p id="auth-signup-error" class="auth-error hidden"></p>
+          <button type="submit" class="btn btn-primary btn-block">Créer le compte</button>
+        </form>
+        <p class="auth-switch">Déjà un compte ? <button type="button" class="btn-link" id="btn-show-login">Se connecter</button></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-main" class="app hidden">
+    <header class="header">
+      <div class="header-main">
+        <div class="logo">
+          <img src="images/logo.jpeg" alt="Kouma Fashion" class="logo-img">
+          <h1>Kouma Fashion</h1>
+          <span class="tagline">Gestion de boutique</span>
+        </div>
+        <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+      </div>
+      <nav class="nav-tabs" id="nav-tabs">
+        <button class="tab-btn active" data-tab="dashboard">Tableau de bord</button>
+        <button class="tab-btn" data-tab="ventes">Ventes</button>
+        <button class="tab-btn" data-tab="produits">Produits</button>
+        <button class="tab-btn" data-tab="stock">Stock</button>
+        <button class="tab-btn" data-tab="clients">Clients & Fournisseurs</button>
+        <button class="tab-btn" data-tab="dettes">Dettes</button>
+      </nav>
+    </header>
+
+    <main class="content">
+      <!-- ONGLET TABLEAU DE BORD -->
+      <section id="dashboard" class="tab-content active">
+        <div class="section-header dashboard-header">
+          <h2>Tableau de bord</h2>
+          <div class="dashboard-header-right">
+          <div class="dashboard-filters">
+            <button class="filter-btn active" data-period="tout">Depuis le début</button>
+            <button class="filter-btn" data-period="annuel">Annuel</button>
+            <button class="filter-btn" data-period="mensuel">Mensuel</button>
+            <button class="filter-btn" data-period="journalier">Journalier</button>
+          </div>
+          <button class="btn btn-outline btn-logout" id="btn-logout" title="Déconnexion">Déconnexion</button>
+          </div>
+        </div>
+
+        <!-- Section Inventaire -->
+        <div class="dashboard-section">
+          <h3 class="dashboard-section-title">Inventaire</h3>
+          <div class="dashboard-cards dashboard-cards-3">
+            <div class="stat-card stat-card-1">
+              <div class="stat-content">
+                <span class="stat-value" id="stat-produits">0</span>
+                <span class="stat-label">Produits</span>
+              </div>
+            </div>
+            <div class="stat-card stat-card-2">
+              <div class="stat-content">
+                <span class="stat-value" id="stat-stock">0</span>
+                <span class="stat-label">Articles en stock</span>
+              </div>
+            </div>
+            <div class="stat-card stat-card-3">
+              <div class="stat-content">
+                <span class="stat-value" id="stat-valeur">0</span>
+                <span class="stat-label">Valeur stock (FCFA)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Ventes -->
+        <div class="dashboard-section">
+          <h3 class="dashboard-section-title">Ventes</h3>
+          <div class="dashboard-cards dashboard-cards-sales">
+            <div class="stat-card stat-card-ca">
+              <div class="stat-content">
+                <span class="stat-value" id="stat-ca">0</span>
+                <span class="stat-label">Chiffre d'affaires (FCFA)</span>
+              </div>
+            </div>
+            <div class="stat-card stat-card-4">
+              <div class="stat-content">
+                <span class="stat-value" id="stat-ventes">0</span>
+                <span class="stat-label">Nombre de ventes</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Dettes -->
+        <div class="dashboard-section">
+          <h3 class="dashboard-section-title">Dettes</h3>
+          <div class="dashboard-cards dashboard-cards-3">
+            <div class="stat-card stat-card-8">
+              <div class="stat-content">
+                <span class="stat-value" id="stat-dette-client">0</span>
+                <span class="stat-label">Clients nous doivent (FCFA)</span>
+              </div>
+            </div>
+            <div class="stat-card stat-card-7">
+              <div class="stat-content">
+                <span class="stat-value" id="stat-dette-fournisseur">0</span>
+                <span class="stat-label">On doit aux fournisseurs (FCFA)</span>
+              </div>
+            </div>
+            <div class="stat-card stat-card-6">
+              <div class="stat-content">
+                <span class="stat-value" id="stat-paye-fournisseur">0</span>
+                <span class="stat-label">Payé aux fournisseurs (FCFA)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Alertes -->
+        <div class="dashboard-section">
+          <h3 class="dashboard-section-title">Alertes</h3>
+          <div class="card dashboard-alert">
+            <h4 class="dashboard-alert-title">Produits en alerte (stock ≤ 5)</h4>
+            <div id="dashboard-rupture" class="rupture-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ONGLET PRODUITS -->
+      <section id="produits" class="tab-content">
+        <div class="section-header">
+          <h2>Gestion des produits</h2>
+          <div class="btn-group">
+            <button type="button" class="btn btn-outline" id="btn-export-produits" title="Export Excel">Export Excel</button>
+            <button class="btn btn-primary" id="btn-add-produit">+ Nouveau produit</button>
+          </div>
+        </div>
+        <div class="search-bar-wrap">
+          <input type="search" id="search-produits" class="input search-input" placeholder="Rechercher (nom, référence, catégorie)...">
+        </div>
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Référence</th>
+                  <th>Nom</th>
+                  <th>Catégorie</th>
+                  <th>Prix achat</th>
+                  <th>Prix vente</th>
+                  <th>Stock</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="produits-list"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ONGLET STOCK -->
+      <section id="stock" class="tab-content">
+        <div class="section-header">
+          <h2>Mouvements de stock</h2>
+          <div class="btn-group">
+            <button class="btn btn-success" id="btn-entree">+ Entrée</button>
+            <button class="btn btn-danger" id="btn-sortie">→ Nouvelle vente</button>
+          </div>
+        </div>
+        <div class="card dashboard-alert stock-alert">
+          <h4 class="dashboard-alert-title">Produits en alerte (stock ≤ 5)</h4>
+          <div id="stock-rupture" class="rupture-list"></div>
+        </div>
+        <div class="search-bar-wrap">
+          <input type="search" id="search-stock" class="input search-input" placeholder="Rechercher (produit, motif, fournisseur)...">
+        </div>
+        <div class="card">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Produit</th>
+                  <th>Type</th>
+                  <th>Quantité</th>
+                  <th>Motif</th>
+                  <th>Facture</th>
+                </tr>
+              </thead>
+              <tbody id="mouvements-list"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ONGLET CLIENTS & FOURNISSEURS -->
+      <section id="clients" class="tab-content">
+        <div class="section-header">
+          <h2>Clients & Fournisseurs</h2>
+          <div class="btn-group">
+            <button class="btn btn-primary" id="btn-add-client">+ Nouveau client</button>
+            <button class="btn btn-primary" id="btn-add-fournisseur">+ Nouveau fournisseur</button>
+          </div>
+        </div>
+        <div class="search-bar-wrap">
+          <input type="search" id="search-clients" class="input search-input" placeholder="Rechercher (nom, téléphone, email)...">
+        </div>
+        <div class="clients-fournisseurs-tabs">
+          <button class="sub-tab active" data-subtab="clients">Clients</button>
+          <button class="sub-tab" data-subtab="fournisseurs">Fournisseurs</button>
+        </div>
+        <div id="clients-section" class="card sub-section">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Téléphone</th>
+                  <th>Email</th>
+                  <th>Adresse</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="clients-list"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="fournisseurs-section" class="card sub-section hidden">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Téléphone</th>
+                  <th>Email</th>
+                  <th>Adresse</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="fournisseurs-list"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ONGLET VENTES -->
+      <section id="ventes" class="tab-content">
+        <div class="section-header">
+          <h2>Nouvelle vente</h2>
+        </div>
+        <div class="vente-layout">
+          <div class="card vente-form">
+            <h3>Informations client</h3>
+            <div class="form-row">
+              <select id="vente-client" class="input">
+                <option value="">-- Sélectionner un client --</option>
+              </select>
+              <span class="or">ou</span>
+              <button class="btn btn-outline" id="btn-new-client-vente">Nouveau client</button>
+            </div>
+            <div id="vente-client-fields" class="client-fields hidden">
+              <input type="text" id="vente-nom" class="input" placeholder="Nom complet">
+              <input type="tel" id="vente-telephone" class="input" placeholder="Téléphone">
+              <input type="email" id="vente-email" class="input" placeholder="Email">
+              <input type="text" id="vente-adresse" class="input" placeholder="Adresse">
+            </div>
+            <h3>Produits</h3>
+            <div class="form-row">
+              <select id="vente-produit" class="input flex-2">
+                <option value="">-- Sélectionner un produit --</option>
+              </select>
+              <input type="number" id="vente-quantite" class="input input-qte" placeholder="Qté" min="1" value="1">
+              <button class="btn btn-primary" id="btn-add-produit-vente">Ajouter</button>
+            </div>
+            <div class="panier">
+              <h4>Panier</h4>
+              <div class="table-responsive">
+              <table class="panier-table">
+                <thead>
+                  <tr>
+                    <th>Produit</th>
+                    <th>Qté</th>
+                    <th>Prix unit.</th>
+                    <th>Réduct. unit.</th>
+                    <th>Sous-total</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="panier-items"></tbody>
+              </table>
+              </div>
+              <div class="panier-reductions">
+                <div class="panier-reduction-row">
+                  <label>Réduction sur le total (FCFA)</label>
+                  <input type="number" id="vente-reduction-totale" class="input input-reduction" min="0" value="0" placeholder="0">
+                </div>
+              </div>
+              <div class="panier-total">
+                <strong>TOTAL: <span id="panier-total">0</span> FCFA</strong>
+              </div>
+              <div class="panier-paiement">
+                <h4 class="panier-paiement-title">Paiement & Dette client</h4>
+                <div class="form-group form-group-checkbox">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="vente-a-credit" class="input-checkbox">
+                    <span>Vente à crédit (dette client)</span>
+                  </label>
+                  <p class="form-hint">Cochez si le client ne paie pas tout. Sinon, le total est réglé automatiquement.</p>
+                </div>
+                <div class="form-group hidden" id="vente-montant-paye-group">
+                  <label>Montant payé maintenant (FCFA)</label>
+                  <input type="number" id="vente-montant-paye" class="input" min="0" value="0" placeholder="0, moitié, ou partie">
+                  <p class="form-hint">Visible si à crédit : entrez 0 (tout à crédit), la moitié, ou autre. Le reste = dette.</p>
+                </div>
+                <p class="form-hint" id="vente-reste-info">Reste à payer: 0 FCFA → Dette client</p>
+              </div>
+              <button class="btn btn-success btn-lg" id="btn-valider-vente" disabled>Valider la vente & Générer facture</button>
+            </div>
+          </div>
+          <div class="card vente-history">
+            <div class="card-header-row">
+              <h3>Historique des ventes</h3>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-export-ventes" title="Export Excel">Export Excel</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>N° Facture</th>
+                    <th>Client</th>
+                    <th>Total</th>
+                    <th>Date</th>
+                    <th>Facture</th>
+                  </tr>
+                </thead>
+                <tbody id="ventes-list"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ONGLET DETTES -->
+      <section id="dettes" class="tab-content">
+        <div class="section-header">
+          <h2>Gestion des dettes</h2>
+          <button type="button" class="btn btn-outline" id="btn-export-dettes" title="Export Excel">Export Excel</button>
+        </div>
+        <div class="search-bar-wrap">
+          <input type="search" id="search-dettes" class="input search-input" placeholder="Rechercher (client, fournisseur, n° facture)...">
+        </div>
+        <div class="dettes-sub-tabs">
+          <button class="sub-tab active" data-dette-subtab="clients">Dettes clients</button>
+          <button class="sub-tab" data-dette-subtab="fournisseurs">Dettes fournisseurs</button>
+        </div>
+        <div id="dettes-clients-section" class="card sub-section">
+          <div class="dettes-filter">
+            <span>Filtrer :</span>
+            <button class="filter-btn-small active" data-dette-filter="clients" data-value="en-cours">En cours</button>
+            <button class="filter-btn-small" data-dette-filter="clients" data-value="reglees">Réglées</button>
+            <button class="filter-btn-small" data-dette-filter="clients" data-value="toutes">Toutes</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Statut</th>
+                  <th>Client</th>
+                  <th>N° Facture</th>
+                  <th>Total</th>
+                  <th>Payé</th>
+                  <th>Reste</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="dettes-clients-list"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="dettes-fournisseurs-section" class="card sub-section hidden">
+          <div class="dettes-filter">
+            <span>Filtrer :</span>
+            <button class="filter-btn-small active" data-dette-filter="fournisseurs" data-value="en-cours">En cours</button>
+            <button class="filter-btn-small" data-dette-filter="fournisseurs" data-value="reglees">Réglées</button>
+            <button class="filter-btn-small" data-dette-filter="fournisseurs" data-value="toutes">Toutes</button>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Statut</th>
+                  <th>Fournisseur</th>
+                  <th>Provenance</th>
+                  <th>Total</th>
+                  <th>Payé</th>
+                  <th>Reste</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="dettes-fournisseurs-list"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL AFFICHAGE PDF -->
+  <div id="modal-pdf-viewer" class="modal modal-pdf" onclick="if(event.target===this) closeModal('modal-pdf-viewer')">
+    <div class="modal-content modal-pdf-content" onclick="event.stopPropagation()">
+      <div class="modal-pdf-header">
+        <h2 id="modal-pdf-title">Aperçu</h2>
+        <div class="modal-pdf-actions">
+          <button type="button" class="btn btn-primary" id="btn-pdf-download">Télécharger</button>
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-pdf-viewer')">Fermer</button>
+        </div>
+      </div>
+      <iframe id="pdf-iframe" class="pdf-iframe" title="Aperçu PDF"></iframe>
+    </div>
+  </div>
+
+  <!-- MODAL RÈGLEMENT DETTE CLIENT -->
+  <div id="modal-reglement-client" class="modal">
+    <div class="modal-content">
+      <h2>Règlement dette client</h2>
+      <form id="form-reglement-client">
+        <input type="hidden" id="reglement-vente-id">
+        <div class="form-group">
+          <label>Montant à régler (FCFA)</label>
+          <input type="number" id="reglement-client-montant" class="input" min="0" step="0.01" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-reglement-client')">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer le paiement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL RÈGLEMENT DETTE FOURNISSEUR -->
+  <div id="modal-reglement-fournisseur" class="modal">
+    <div class="modal-content">
+      <h2>Règlement dette fournisseur</h2>
+      <form id="form-reglement-fournisseur">
+        <input type="hidden" id="reglement-mouvement-id">
+        <div class="form-group">
+          <label>Montant à régler (FCFA)</label>
+          <input type="number" id="reglement-fournisseur-montant" class="input" min="0" step="0.01" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-reglement-fournisseur')">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer le paiement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL PRODUIT -->
+  <div id="modal-produit" class="modal">
+    <div class="modal-content">
+      <h2 id="modal-produit-title">Nouveau produit</h2>
+      <form id="form-produit">
+        <input type="hidden" id="produit-id">
+        <div class="form-group">
+          <label>Nom</label>
+          <input type="text" id="produit-nom" class="input" required>
+        </div>
+        <div class="form-group">
+          <label>Référence</label>
+          <input type="text" id="produit-reference" class="input">
+        </div>
+        <div class="form-group">
+          <label>Catégorie</label>
+          <input type="text" id="produit-categorie" class="input" placeholder="ex: Robe, Pantalon...">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Prix d'achat (FCFA)</label>
+            <input type="number" id="produit-prix-achat" class="input" min="0" value="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Prix de vente (FCFA)</label>
+            <input type="number" id="produit-prix-vente" class="input" min="0" required step="0.01">
+          </div>
+        </div>
+        <div class="form-group" id="produit-quantite-group">
+          <label>Quantité initiale</label>
+          <input type="number" id="produit-quantite" class="input" min="0" value="0">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-produit')">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL CLIENT -->
+  <div id="modal-client" class="modal">
+    <div class="modal-content">
+      <h2 id="modal-client-title">Nouveau client</h2>
+      <form id="form-client">
+        <input type="hidden" id="client-id">
+        <div class="form-group">
+          <label>Nom complet</label>
+          <input type="text" id="client-nom" class="input" required>
+        </div>
+        <div class="form-group">
+          <label>Téléphone</label>
+          <input type="tel" id="client-telephone" class="input">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="client-email" class="input">
+        </div>
+        <div class="form-group">
+          <label>Adresse</label>
+          <input type="text" id="client-adresse" class="input">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-client')">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL FOURNISSEUR -->
+  <div id="modal-fournisseur" class="modal">
+    <div class="modal-content">
+      <h2 id="modal-fournisseur-title">Nouveau fournisseur</h2>
+      <form id="form-fournisseur">
+        <input type="hidden" id="fournisseur-id">
+        <div class="form-group">
+          <label>Nom / Société</label>
+          <input type="text" id="fournisseur-nom" class="input" required>
+        </div>
+        <div class="form-group">
+          <label>Téléphone</label>
+          <input type="tel" id="fournisseur-telephone" class="input">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="fournisseur-email" class="input">
+        </div>
+        <div class="form-group">
+          <label>Adresse</label>
+          <input type="text" id="fournisseur-adresse" class="input">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-fournisseur')">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL ENTRÉE STOCK (produit + stock) -->
+  <div id="modal-mouvement" class="modal">
+    <div class="modal-content modal-mouvement">
+      <h2>Entrée de stock</h2>
+      <p class="form-hint">Enregistrez un produit et son stock en une seule opération.</p>
+      <form id="form-mouvement">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="mouvement-mode" class="input">
+            <option value="existant">Produit existant</option>
+            <option value="nouveau">Nouveau produit</option>
+          </select>
+        </div>
+        <div id="mouvement-existant" class="form-group">
+          <label>Produit</label>
+          <select id="mouvement-produit" class="input"></select>
+        </div>
+        <div id="mouvement-nouveau" class="form-section hidden">
+          <h4>Informations produit</h4>
+          <div class="form-group">
+            <label>Nom du produit</label>
+            <input type="text" id="mouvement-nom" class="input" placeholder="Ex: Robe été">
+          </div>
+          <div class="form-group">
+            <label>Référence</label>
+            <input type="text" id="mouvement-reference" class="input" placeholder="Ex: ROB-001">
+          </div>
+          <div class="form-group">
+            <label>Catégorie</label>
+            <input type="text" id="mouvement-categorie" class="input" placeholder="Ex: Robe, Pantalon">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Prix d'achat (FCFA)</label>
+              <input type="number" id="mouvement-prix-achat" class="input" min="0" value="0" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Prix de vente (FCFA)</label>
+              <input type="number" id="mouvement-prix-vente" class="input" min="0" step="0.01" placeholder="Prix de vente">
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Quantité</label>
+          <input type="number" id="mouvement-quantite" class="input" min="1" required>
+        </div>
+        <div class="form-group">
+          <label>Provenance / Motif</label>
+          <input type="text" id="mouvement-provenance" class="input" placeholder="Ex: Livraison fournisseur...">
+        </div>
+        <div class="form-section">
+          <h4>Fournisseur</h4>
+          <div class="form-group">
+            <label>Fournisseur</label>
+            <input type="text" id="mouvement-fournisseur" class="input" placeholder="Nom ou société">
+          </div>
+          <div class="form-row">
+            <select id="mouvement-fournisseur-select" class="input flex-2">
+              <option value="">-- Ou sélectionner un fournisseur --</option>
+            </select>
+            <span class="or">ou</span>
+            <button type="button" class="btn btn-outline" id="btn-new-fournisseur-mouvement">Nouveau</button>
+          </div>
+          <div class="form-group">
+            <label>Contact (tél / email)</label>
+            <input type="text" id="mouvement-fournisseur-contact" class="input" placeholder="Téléphone ou email">
+          </div>
+        </div>
+        <div class="form-section">
+          <h4>Paiement</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Montant total (FCFA)</label>
+              <input type="number" id="mouvement-montant-total" class="input" min="0" step="0.01" placeholder="0">
+            </div>
+            <div class="form-group">
+              <label>Montant payé (FCFA)</label>
+              <input type="number" id="mouvement-montant-paye" class="input" min="0" step="0.01" placeholder="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <span class="reste-info" id="mouvement-reste">Reste à payer: 0 FCFA</span>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-mouvement')">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer & Générer facture</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
